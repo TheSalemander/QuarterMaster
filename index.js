@@ -75,7 +75,7 @@ const matches = (await response.json()).filter(m =>
     }
 
     let matchesPlayed = gamesWithDeck.length;
-    let matchesWon = gamesWithDeck.filter(m => m.Winner_deck === deckName).length;
+    let matchesWon = gamesWithDeck.filter(m => m.Winner_Deck === deckName).length;
 
     let gamesWon = gamesWithDeck.reduce((sum, m) =>
       sum +
@@ -119,7 +119,7 @@ const matches = (await response.json()).filter(m =>
     let metaStats = uniqueDecks.map(deck => {
       const gamesWithDeck = matches.filter(m => m.P1_deck === deck || m.P2_deck === deck);
       const matchesPlayed = gamesWithDeck.length;
-      const matchesWon = gamesWithDeck.filter(m => m.Winner_deck === deck).length;
+      const matchesWon = gamesWithDeck.filter(m => m.Winner_Deck === deck).length;
 
       const gamesWon = gamesWithDeck.reduce((sum, m) =>
         sum +
