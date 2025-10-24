@@ -61,8 +61,10 @@ client.on("messageCreate", async (message) => {
       return message.channel.send("Please specify a deck name. Example: `!deckstats Jund`");
     }
 
-    const response = await fetch(SHEETDB_URL);
-    const matches = await response.json();
+   const response = await fetch(SHEETDB_URL);
+const matches = (await response.json()).filter(m =>
+  m.P1 && m.P2 && m.Winner && m.Winner_Deck
+);
 
     const gamesWithDeck = matches.filter(
       m => m.P1_deck === deckName || m.P2_deck === deckName
@@ -104,8 +106,9 @@ client.on("messageCreate", async (message) => {
   // ======================================================
   if (cmd === "!meta") {
     const response = await fetch(SHEETDB_URL);
-    const matches = await response.json();
-
+    const matches = (await response.json()).filter(m =>
+  m.P1 && m.P2 && m.Winner && m.Winner_Deck
+);
     const decks = matches.flatMap(m => [m.P1_deck, m.P2_deck]).filter(Boolean);
     if (decks.length === 0) {
       return message.channel.send("No decks recorded yet.");
