@@ -45,6 +45,10 @@ client.on("ready", () => {
 client.on("messageCreate", async (message) => {
   if (message.author.bot) return;
 
+  if (cmd === "!test") {
+  return message.channel.send("✅ QuarterMaster CAN send messages here.");
+}
+
   // ✅ Only respond in the Meta channel
   if (message.channel.id !== ALLOWED_CHANNEL) return;
 
