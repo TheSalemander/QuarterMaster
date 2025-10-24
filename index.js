@@ -96,7 +96,7 @@ const matches = (await response.json()).filter(m =>
     let matchWinPct = ((matchesWon / matchesPlayed) * 100).toFixed(1);
     let gameWinPct = ((gamesWon / gamesTotal) * 100).toFixed(1);
 
-    return message.channel.send(
+    message.channel.send(
       `🧙‍♂️ **Deck Stats: ${deckName}**\n\n` +
       `Matches Played: **${matchesPlayed}**\n` +
       `Matches Won: **${matchesWon}** (${matchWinPct}%)\n` +
@@ -152,7 +152,10 @@ const matches = (await response.json()).filter(m =>
       reply += `• **${s.deck}** — ${s.matchesPlayed} matches — ${s.matchWinPct}% match WR — ${s.gameWinPct}% game WR\n`;
     });
 
-    return message.channel.send(reply);
+    message.channel.send(reply).catch(err => {
+  console.error("FAILED TO SEND MESSAGE:", err);
+  message.channel.send("⚠️ Error sending message. Check bot logs.").catch(() => {});
+});
   }
 });
 
