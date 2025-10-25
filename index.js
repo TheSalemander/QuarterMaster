@@ -168,6 +168,77 @@ if (cmd === "!matchups") {
 // END COMMAND: !matchups
 // ------------------------------------------------------
 
+  // ------------------------------------------------------
+// COMMAND: !topdeck <deck>
+// ------------------------------------------------------
+if (cmd === "!topdeck") {
+  const deckName = args.join(" ").trim();
+  if (!deckName) return message.channel.send("Usage: `!topdeck <deck>`");
+
+  const norm = (s) => (s || "").trim().toLowerCase();
+  const res = await fetch(SHEETDB_URL);
+  const matches = (await res.json()).filter(m =>
+    m.P1 && m.P2 && m.Winner && m.Winner_Deck
+  );
+
+  const filtered = matches.filter(m =>
+    norm(m.P1_deck) === norm(deckName) ||
+    norm(m.P2_deck) === norm(deckName)
+  );
+
+  if (!filtered.length)
+    return message.channel.send(`No match history for deck **${deckName}**.`);
+
+  const players = new Map();
+
+  for (const m of filtered) {
+    const p1 = m.P1, p2 = m.P2;
+    const p1Used = norm(m.P1_deck) === norm(deckName);
+    const p2Used = norm(m.P2_deck) === norm(deckName);
+
+    if (p1Used) {
+      if (!players.has(p1)) players.set(p1, { mp:0, mw:0, gw:0, gt:0 });
+      const p = players.get(p1);
+      p.mp++;
+      if (norm(m.Winner_Deck) === norm(deckName)) p.mw++;
+      p.gw += Number(m.P1W);
+      p.gt += Number(m.P1W) + Number(m.P2W);
+    }
+
+    if (p2Used) {
+      if (!players.has(p2)) players.set(p2, { mp:0, mw:0, gw:0, gt:0 });
+      const p = players.get(p2);
+      p.mp++;
+      if (norm(m.Winner_Deck) === norm(deckName)) p.mw++;
+      p.gw += Number(m.P2W);
+      p.gt += Number(m.P1W) + Number(m.P2W);
+    }
+  }
+
+  const ranking = [...players.entries()]
+    .map(([player, d]) => ({
+      player,
+      mp: d.mp,
+      mw: d.mw,
+      gw: d.gw,
+      gt: d.gt,
+      mwr: ((d.mw / d.mp) * 100).toFixed(1),
+      gwr: ((d.gw / d.gt) * 100).toFixed(1)
+    }))
+    .sort((a, b) => b.mw / b.mp - a.mw / a.mp || b.gw / b.gt - a.gw / a.gt)
+    .slice(0, 3);
+
+  let reply = `🏅 **Top ${Math.min(3, ranking.length)} Pilots of ${deckName}**\n\n`;
+  ranking.forEach(r => {
+    reply += `• **${r.player}** — ${r.mw}-${r.mp - r.mw} (${r.mwr}% match WR) — ${r.gw}-${r.gt - r.gw} games (${r.gwr}% GWR)\n`;
+  });
+
+  return message.channel.send(reply);
+}
+// ------------------------------------------------------
+// END COMMAND: !topdeck
+// ------------------------------------------------------
+
 
 // ------------------------------------------------------
 // COMMAND: !vs <deckA> vs <deckB>
