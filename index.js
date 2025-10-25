@@ -103,6 +103,82 @@ client.on("messageCreate", async (message) => {
     // END COMMAND BLOCK: !say
     // ------------------------------------------------------
 
+    // ------------------------------------------------------
+// COMMAND BLOCK: !trend <deck>
+// Shows weekly match win-rate progression for a deck
+// ------------------------------------------------------
+if (cmd === "!trend") {
+  const raw = args.join(" ").trim();
+  if (!raw) {
+    return message.channel.send("Please specify a deck name. Example: `!trend U-Terror`")
+      .catch(err => console.error("[QM] FAILED TO SEND:", err));
+  }
+
+  const norm = (s) => (s || "").trim().toLowerCase();
+  const deckKey = norm(raw);
+
+  const res = await fetch(SHEETDB_URL);
+  const rows = await res.json();
+  const matches = rows.filter(m =>
+    m.P1 && m.P2 && m.Winner && m.Winner_Deck && m.Date
+  );
+
+  const involving = matches.filter(
+    m => norm(m.P1_deck) === deckKey || norm(m.P2_deck) === deckKey
+  );
+
+  if (!involving.length) {
+    return message.channel.send(`No matches found for deck **${raw}**.`)
+      .catch(err => console.error("[QM] FAILED:", err));
+  }
+
+  // ✅ ISO DATE PARSER (YYYY-MM-DD)
+  const parseISODate = (d) => new Date(d);
+
+  // Grouping to Monday of that week
+  const weekStart = (date) => {
+    const d = new Date(date);
+    const day = d.getDay();
+    const diff = (day === 0 ? -6 : 1 - day);
+    d.setDate(d.getDate() + diff);
+    d.setHours(0,0,0,0);
+    return d;
+  };
+
+  const weekly = new Map();
+
+  for (const m of involving) {
+    const date = parseISODate(m.Date);
+    const wk = weekStart(date).getTime();
+    if (!weekly.has(wk)) weekly.set(wk, { matches: 0, wins: 0 });
+    const rec = weekly.get(wk);
+    rec.matches++;
+    if (norm(m.Winner_Deck) === deckKey) rec.wins++;
+  }
+
+  const timeline = [...weekly.entries()]
+    .sort((a,b) => a[0] - b[0])
+    .map(([wk, r]) => {
+      const d = new Date(wk);
+      const label = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+      const wr = ((r.wins / r.matches) * 100).toFixed(1);
+      return { label, record: `${r.wins}-${r.matches - r.wins}`, wr };
+    });
+
+  let reply = `📈 **Performance Trend for ${raw}**\n\n`;
+  timeline.forEach(t => {
+    const tag = t.wr >= 60 ? "🔥" : t.wr >= 50 ? "✅" : t.wr >= 40 ? "⚖️" : "🔻";
+    reply += `• **Week of ${t.label}** — ${t.record} (${t.wr}% WR) ${tag}\n`;
+  });
+
+  return message.channel.send(reply)
+    .catch(err => console.error("[QM] FAILED TO SEND TREND MESSAGE:", err));
+}
+// ------------------------------------------------------
+// END COMMAND BLOCK: !trend
+// ------------------------------------------------------
+
+
 
     // ------------------------------------------------------
     // COMMAND BLOCK: !deckstats <deck>
