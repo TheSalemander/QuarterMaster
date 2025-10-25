@@ -21,11 +21,17 @@ const client = new Client({
   ]
 });
 
+// ==============================
+// Web Server (Railway Requirement)
+// ==============================
 const app = express();
 app.use(express.json());
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`QuarterMaster online on port ${PORT}`));
 
+// ==============================
+// READY EVENT
+// ==============================
 client.on("ready", async () => {
   console.log(`QuarterMaster reporting for duty — logged in as ${client.user.tag}`);
   try {
@@ -37,26 +43,27 @@ client.on("ready", async () => {
   }
 });
 
+// ==============================
+// MESSAGE HANDLER
+// ==============================
 client.on("messageCreate", async (message) => {
   try {
     if (message.author.bot) return;
 
     console.log(`[QM] msg in ${message.channel.id} from ${message.author.tag} | content=`, JSON.stringify(message.content));
 
-    if (message.channel.id !== ALLOWED_CHANNEL) {
-      console.log(`[QM] Ignored message in non-allowed channel ${message.channel.id}`);
-      return;
-    }
+    if (message.channel.id !== ALLOWED_CHANNEL) return;
 
     const parts = (message.content || "").trim().split(/\s+/);
     const cmd = (parts.shift() || "").toLowerCase();
     const args = parts;
 
+    // ------------------------------------------------------
+    // COMMAND BLOCK: !debug
+    // ------------------------------------------------------
     if (cmd === "!debug") {
       const me = message.guild?.members?.me;
-      if (!me) {
-        console.log("[QM] No guild member reference (me) available.");
-      } else {
+      if (me) {
         const perms = me.permissionsIn(message.channel);
         console.log("[QM] DEBUG PERMISSIONS:", {
           canView: perms.has("ViewChannel"),
@@ -67,18 +74,39 @@ client.on("messageCreate", async (message) => {
       return message.channel.send("🔍 Logged permission report to console.")
         .catch(err => console.error("[QM] FAILED TO SEND DEBUG MESSAGE:", err));
     }
+    // ------------------------------------------------------
+    // END COMMAND BLOCK: !debug
+    // ------------------------------------------------------
 
+
+    // ------------------------------------------------------
+    // COMMAND BLOCK: !test
+    // ------------------------------------------------------
     if (cmd === "!test") {
       return message.channel.send("✅ Bot can send messages.")
         .catch(err => console.error("[QM] FAILED TO SEND TEST MESSAGE:", err));
     }
+    // ------------------------------------------------------
+    // END COMMAND BLOCK: !test
+    // ------------------------------------------------------
 
+
+    // ------------------------------------------------------
+    // COMMAND BLOCK: !say <text>
+    // ------------------------------------------------------
     if (cmd === "!say") {
       const text = args.join(" ") || "(no text)";
       return message.channel.send(`🗣️ ${text}`)
         .catch(err => console.error("[QM] FAILED TO SEND SAY MESSAGE:", err));
     }
+    // ------------------------------------------------------
+    // END COMMAND BLOCK: !say
+    // ------------------------------------------------------
 
+
+    // ------------------------------------------------------
+    // COMMAND BLOCK: !deckstats <deck>
+    // ------------------------------------------------------
     if (cmd === "!deckstats") {
       const deckName = args.join(" ").trim();
       if (!deckName) {
@@ -115,17 +143,21 @@ client.on("messageCreate", async (message) => {
         0
       );
 
-      const matchWinPct = ((matchesWon / matchesPlayed) * 100).toFixed(1);
-      const gameWinPct = ((gamesWon / gamesTotal) * 100).toFixed(1);
-
       return message.channel.send(
         `🧙‍♂️ **Deck Stats: ${deckName}**\n\n` +
         `Matches Played: **${matchesPlayed}**\n` +
-        `Matches Won: **${matchesWon}** (${matchWinPct}%)\n` +
-        `Games Won: **${gamesWon} / ${gamesTotal}** (${gameWinPct}%)`
+        `Matches Won: **${matchesWon}**\n` +
+        `Games Won: **${gamesWon} / ${gamesTotal}**`
       ).catch(err => console.error("[QM] FAILED TO SEND:", err));
     }
+    // ------------------------------------------------------
+    // END COMMAND BLOCK: !deckstats
+    // ------------------------------------------------------
 
+
+    // ------------------------------------------------------
+    // COMMAND BLOCK: !meta
+    // ------------------------------------------------------
     if (cmd === "!meta") {
       const response = await fetch(SHEETDB_URL);
       const matches = (await response.json()).filter(m =>
@@ -133,52 +165,109 @@ client.on("messageCreate", async (message) => {
       );
 
       const decks = matches.flatMap(m => [m.P1_deck, m.P2_deck]).filter(Boolean);
-      if (decks.length === 0) {
-        return message.channel.send("No decks recorded yet.")
-          .catch(err => console.error("[QM] FAILED TO SEND:", err));
-      }
-
       const uniqueDecks = [...new Set(decks)];
 
-      let metaStats = uniqueDecks.map(deck => {
-        const gamesWithDeck = matches.filter(m => m.P1_deck === deck || m.P2_deck === deck);
-        const matchesPlayed = gamesWithDeck.length;
-        const matchesWon = gamesWithDeck.filter(m => m.Winner_Deck === deck).length;
-
-        const gamesWon = gamesWithDeck.reduce((sum, m) =>
-          sum +
-          (m.P1_deck === deck ? Number(m.P1W) : 0) +
-          (m.P2_deck === deck ? Number(m.P2W) : 0),
-          0
-        );
-
-        const gamesTotal = gamesWithDeck.reduce((sum, m) =>
-          sum + Number(m.P1W) + Number(m.P2W),
-          0
-        );
+      let meta = uniqueDecks.map(deck => {
+        const subset = matches.filter(m => m.P1_deck === deck || m.P2_deck === deck);
+        const mp = subset.length;
+        const mw = subset.filter(m => m.Winner_Deck === deck).length;
+        const gw = subset.reduce((s, m) => s + (m.P1_deck === deck ? Number(m.P1W) : Number(m.P2W)), 0);
+        const gt = subset.reduce((s, m) => s + Number(m.P1W) + Number(m.P2W), 0);
 
         return {
           deck,
-          matchesPlayed,
-          matchWinPct: matchesPlayed ? ((matchesWon / matchesPlayed) * 100).toFixed(1) : "0.0",
-          gameWinPct: gamesTotal ? ((gamesWon / gamesTotal) * 100).toFixed(1) : "0.0"
+          mp,
+          matchWR: mp ? ((mw / mp) * 100).toFixed(1) : "0.0",
+          gameWR: gt ? ((gw / gt) * 100).toFixed(1) : "0.0"
         };
       });
 
-      metaStats.sort((a, b) => b.matchesPlayed - a.matchesPlayed);
+      meta.sort((a, b) => b.mp - a.mp);
 
       let reply = "📊 **Current Meta Overview**\n\n";
-      metaStats.forEach(s => {
-        reply += `• **${s.deck}** — ${s.matchesPlayed} matches — ${s.matchWinPct}% match WR — ${s.gameWinPct}% game WR\n`;
+      meta.forEach(s => {
+        reply += `• **${s.deck}** — ${s.mp} matches — ${s.matchWR}% match WR — ${s.gameWR}% game WR\n`;
       });
 
-      return message.channel.send(reply).catch(err => {
-        console.error("[QM] FAILED TO SEND META MESSAGE:", err);
-      });
+      return message.channel.send(reply)
+        .catch(err => console.error("[QM] FAILED TO SEND META:", err));
     }
+    // ------------------------------------------------------
+    // END COMMAND BLOCK: !meta
+    // ------------------------------------------------------
+
+
+    // ------------------------------------------------------
+    // COMMAND BLOCK: !matchups <deck>
+    // ------------------------------------------------------
+    if (cmd === "!matchups") {
+      const raw = args.join(" ").trim();
+      if (!raw) {
+        return message.channel.send("Please specify a deck name. Example: `!matchups U-Terror`")
+          .catch(err => console.error("[QM] FAILED:", err));
+      }
+
+      const norm = (s) => (s || "").trim().toLowerCase();
+      const deckKey = norm(raw);
+
+      const res = await fetch(SHEETDB_URL);
+      const rows = await res.json();
+      const matches = rows.filter(m => m.P1 && m.P2 && m.Winner && m.Winner_Deck);
+
+      const involving = matches.filter(
+        m => norm(m.P1_deck) === deckKey || norm(m.P2_deck) === deckKey
+      );
+
+      if (!involving.length) {
+        return message.channel.send(`No matches found for deck **${raw}**.`)
+          .catch(err => console.error("[QM] FAILED:", err));
+      }
+
+      const vs = new Map();
+      for (const m of involving) {
+        const opp = norm(m.P1_deck) === deckKey ? m.P2_deck : m.P1_deck;
+        if (!opp) continue;
+        if (!vs.has(opp)) vs.set(opp, { matches: 0, wins: 0, gw: 0, gt: 0 });
+
+        const rec = vs.get(opp);
+        rec.matches++;
+        if (norm(m.Winner_Deck) === deckKey) rec.wins++;
+
+        const gw = (norm(m.P1_deck) === deckKey ? Number(m.P1W) : Number(m.P2W));
+        const gt = Number(m.P1W) + Number(m.P2W);
+        rec.gw += gw;
+        rec.gt += gt;
+      }
+
+      const table = [...vs.entries()].map(([opp, r]) => {
+        return {
+          opp,
+          record: `${r.wins}-${r.matches - r.wins}`,
+          mw: r.matches ? ((r.wins / r.matches) * 100).toFixed(1) : "0.0",
+          gw: r.gt ? ((r.gw / r.gt) * 100).toFixed(1) : "0.0",
+          matches: r.matches
+        };
+      }).sort((a, b) => b.mw - a.mw || b.matches - a.matches || a.opp.localeCompare(b.opp));
+
+      let reply = `📊 **Matchups for ${raw}**\n\n`;
+      table.forEach(r => {
+        const tag = r.mw >= 60 ? "🔥" : r.mw >= 50 ? "✅" : r.mw >= 40 ? "⚖️" : "🔻";
+        reply += `• vs **${r.opp}** — ${r.record} (${r.mw}% match WR, ${r.gw}% game WR) ${tag}\n`;
+      });
+
+      return message.channel.send(reply)
+        .catch(err => console.error("[QM] FAILED TO SEND MATCHUPS:", err));
+    }
+    // ------------------------------------------------------
+    // END COMMAND BLOCK: !matchups
+    // ------------------------------------------------------
+
   } catch (err) {
     console.error("[QM] Uncaught error in messageCreate:", err);
   }
 });
 
+// ==============================
+// LOGIN
+// ==============================
 client.login(process.env.DISCORD_TOKEN);
