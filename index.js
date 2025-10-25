@@ -178,6 +178,69 @@ if (cmd === "!trend") {
 // END COMMAND BLOCK: !trend
 // ------------------------------------------------------
 
+    // ------------------------------------------------------
+    // COMMAND BLOCK: !vs <deckA> <deckB>
+    // Head-to-head comparison between two decks
+    // ------------------------------------------------------
+    if (cmd === "!vs") {
+      const text = args.join(" ").trim();
+      const split = text.split(/ +vs +| +v +|,/i).map(s => s.trim()).filter(Boolean);
+
+      if (split.length !== 2) {
+        return message.channel.send(
+          "Usage: `!vs DeckA vs DeckB`\nExample: `!vs U-Terror vs BR-Burn`"
+        ).catch(err => console.error("[QM] FAILED TO SEND:", err));
+      }
+
+      const [deckA, deckB] = split;
+      const norm = s => (s || "").toLowerCase().trim();
+
+      const res = await fetch(SHEETDB_URL);
+      const rows = await res.json();
+      const matches = rows.filter(m => m.P1 && m.P2 && m.Winner && m.Winner_Deck);
+
+      const relevant = matches.filter(m =>
+        (norm(m.P1_deck) === norm(deckA) && norm(m.P2_deck) === norm(deckB)) ||
+        (norm(m.P1_deck) === norm(deckB) && norm(m.P2_deck) === norm(deckA))
+      );
+
+      if (!relevant.length) {
+        return message.channel.send(`No matches found between **${deckA}** and **${deckB}**.`)
+          .catch(err => console.error("[QM] FAILED:", err));
+      }
+
+      let matchesA = 0, matchesB = 0;
+      let gamesA = 0, gamesB = 0;
+
+      for (const m of relevant) {
+        const a_is_p1 = norm(m.P1_deck) === norm(deckA);
+        const aGames = a_is_p1 ? Number(m.P1W) : Number(m.P2W);
+        const bGames = a_is_p1 ? Number(m.P2W) : Number(m.P1W);
+
+        gamesA += aGames;
+        gamesB += bGames;
+
+        if (norm(m.Winner_Deck) === norm(deckA)) matchesA++;
+        else matchesB++;
+      }
+
+      const matchWR = ((matchesA / (matchesA + matchesB)) * 100).toFixed(1);
+      const gameWR = ((gamesA / (gamesA + gamesB)) * 100).toFixed(1);
+
+      const emoji = matchWR >= 60 ? "🔥"
+                 : matchWR >= 50 ? "✅"
+                 : matchWR >= 40 ? "⚖️"
+                 : "🔻";
+
+      return message.channel.send(
+        `⚔️ **${deckA} vs ${deckB}**\n\n` +
+        `Matches: **${matchesA}-${matchesB}** (${matchWR}% WR) ${emoji}\n` +
+        `Games: **${gamesA}-${gamesB}** (${gameWR}% game WR)`
+      ).catch(err => console.error("[QM] FAILED TO SEND VS MESSAGE:", err));
+    }
+    // ------------------------------------------------------
+    // END COMMAND BLOCK: !vs
+    // ------------------------------------------------------
 
 
     // ------------------------------------------------------
