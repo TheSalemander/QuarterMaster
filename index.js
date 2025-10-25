@@ -169,6 +169,76 @@ if (cmd === "!matchups") {
 // ------------------------------------------------------
 
 // ------------------------------------------------------
+// COMMAND: !bestdecks <player>
+// Shows how well a player performs on each deck they played.
+// ------------------------------------------------------
+if (cmd === "!bestdecks") {
+  const player = args.join(" ").trim();
+  if (!player) return message.channel.send("Usage: `!bestdecks <player>`");
+
+  const res = await fetch(SHEETDB_URL);
+  const matches = (await res.json()).filter(m =>
+    m.P1 && m.P2 && m.Winner && m.Winner_Deck
+  );
+
+  const playerMatches = matches.filter(m =>
+    norm(m.P1) === norm(player) || norm(m.P2) === norm(player)
+  );
+
+  if (!playerMatches.length)
+    return message.channel.send(`No match history found for **${player}**.`);
+
+  const decks = new Map();
+
+  for (const m of playerMatches) {
+    let deckUsed, gamesWon, gamesTotal, winMatch;
+
+    if (norm(m.P1) === norm(player)) {
+      deckUsed = m.P1_deck;
+      gamesWon = Number(m.P1W);
+      gamesTotal = Number(m.P1W) + Number(m.P2W);
+      winMatch = norm(m.Winner) === norm(player);
+    } else {
+      deckUsed = m.P2_deck;
+      gamesWon = Number(m.P2W);
+      gamesTotal = Number(m.P1W) + Number(m.P2W);
+      winMatch = norm(m.Winner) === norm(player);
+    }
+
+    if (!decks.has(deckUsed)) decks.set(deckUsed, { mp:0, mw:0, gw:0, gt:0 });
+    const d = decks.get(deckUsed);
+    d.mp++;
+    if (winMatch) d.mw++;
+    d.gw += gamesWon;
+    d.gt += gamesTotal;
+  }
+
+  const standings = [...decks.entries()]
+    .map(([deck, d]) => ({
+      deck,
+      mp: d.mp,
+      mw: d.mw,
+      gw: d.gw,
+      gt: d.gt,
+      mwr: ((d.mw / d.mp) * 100).toFixed(1),
+      gwr: ((d.gw / d.gt) * 100).toFixed(1)
+    }))
+    .sort((a, b) => b.mw / b.mp - a.mw / a.mp || b.gw / b.gt - a.gw / a.gt);
+
+  let reply = `🎭 **Best Decks for ${player}**\n\n`;
+  standings.forEach(s => {
+    reply += `• **${s.deck}** — ${s.mw}-${s.mp - s.mw} (${s.mwr}% match WR) — ${s.gw}-${s.gt - s.gw} games (${s.gwr}% GWR)\n`;
+  });
+
+  return message.channel.send(reply);
+}
+// ------------------------------------------------------
+// END COMMAND: !bestdecks
+// ------------------------------------------------------
+
+
+  
+// ------------------------------------------------------
 // COMMAND: !topdeck <deck>
 // ------------------------------------------------------
 if (cmd === "!topdeck") {
