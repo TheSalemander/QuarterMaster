@@ -242,6 +242,47 @@ if (cmd === "!trend") {
     // END COMMAND BLOCK: !vs
     // ------------------------------------------------------
 
+        // ------------------------------------------------------
+    // COMMAND BLOCK: !recent <n>
+    // Shows the last N matches played (default 5)
+    // ------------------------------------------------------
+    if (cmd === "!recent") {
+      const n = Number(args[0]) || 5; // default to 5 if no number provided
+
+      const res = await fetch(SHEETDB_URL);
+      const rows = await res.json();
+
+      // Filter valid match rows
+      const matches = rows.filter(m =>
+        m.P1 && m.P2 && m.P1W && m.P2W && m.Winner && m.Winner_Deck && m.Date
+      );
+
+      if (!matches.length) {
+        return message.channel.send("No matches recorded yet.")
+          .catch(err => console.error("[QM] FAILED TO SEND:", err));
+      }
+
+      // Sort newest → oldest using the ISO date format
+      matches.sort((a, b) => new Date(b.Date) - new Date(a.Date));
+
+      const slice = matches.slice(0, n);
+
+      let reply = `🕒 **Recent Matches (last ${slice.length})**\n\n`;
+
+      for (const m of slice) {
+        reply += `${m.Winner} **(${m.Winner_Deck})** def. ` +
+                 `${m.Loser} (${m.Loser_Deck || "?"}) — ` +
+                 `${m.P1W}-${m.P2W} ` +
+                 `*(${m.Date})*\n`;
+      }
+
+      return message.channel.send(reply)
+        .catch(err => console.error("[QM] FAILED TO SEND RECENT MESSAGE:", err));
+    }
+    // ------------------------------------------------------
+    // END COMMAND BLOCK: !recent
+    // ------------------------------------------------------
+
 
     // ------------------------------------------------------
     // COMMAND BLOCK: !deckstats <deck>
