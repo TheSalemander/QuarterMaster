@@ -168,53 +168,65 @@ if (cmd === "!matchups") {
 // END COMMAND: !matchups
 // ------------------------------------------------------
 
-  // ------------------------------------------------------
+// ------------------------------------------------------
 // COMMAND: !topdeck <deck>
 // ------------------------------------------------------
 if (cmd === "!topdeck") {
   const deckName = args.join(" ").trim();
   if (!deckName) return message.channel.send("Usage: `!topdeck <deck>`");
 
-  const norm = (s) => (s || "").trim().toLowerCase();
   const res = await fetch(SHEETDB_URL);
-  const matches = (await res.json()).filter(m =>
-    m.P1 && m.P2 && m.Winner && m.Winner_Deck
+  const rows = await res.json();
+
+  // Strict filter: exclude placeholder rows and ensure numbers are valid
+  const matches = rows.filter(m =>
+    m.P1 && m.P2 &&
+    m.P1 !== "-" && m.P2 !== "-" &&
+    m.P1_deck && m.P2_deck &&
+    m.P1_deck !== "-" && m.P2_deck !== "-" &&
+    m.Winner && m.Winner !== "-" &&
+    m.Winner_Deck && m.Winner_Deck !== "-" &&
+    !isNaN(Number(m.P1W)) &&
+    !isNaN(Number(m.P2W))
   );
 
+  const n = (s) => (s || "").trim().toLowerCase();
+
+  // Only matches where the requested deck was used
   const filtered = matches.filter(m =>
-    norm(m.P1_deck) === norm(deckName) ||
-    norm(m.P2_deck) === norm(deckName)
+    n(m.P1_deck) === n(deckName) || n(m.P2_deck) === n(deckName)
   );
 
   if (!filtered.length)
     return message.channel.send(`No match history for deck **${deckName}**.`);
 
+  // Aggregate per-player performance when they were piloting the deck
   const players = new Map();
 
   for (const m of filtered) {
-    const p1 = m.P1, p2 = m.P2;
-    const p1Used = norm(m.P1_deck) === norm(deckName);
-    const p2Used = norm(m.P2_deck) === norm(deckName);
+    const p1Used = n(m.P1_deck) === n(deckName);
+    const p2Used = n(m.P2_deck) === n(deckName);
 
     if (p1Used) {
-      if (!players.has(p1)) players.set(p1, { mp:0, mw:0, gw:0, gt:0 });
-      const p = players.get(p1);
-      p.mp++;
-      if (norm(m.Winner_Deck) === norm(deckName)) p.mw++;
+      if (!players.has(m.P1)) players.set(m.P1, { mp: 0, mw: 0, gw: 0, gt: 0 });
+      const p = players.get(m.P1);
+      p.mp += 1;
+      if (m.Winner === m.P1) p.mw += 1;                  // ✅ win credited to the pilot
       p.gw += Number(m.P1W);
       p.gt += Number(m.P1W) + Number(m.P2W);
     }
 
     if (p2Used) {
-      if (!players.has(p2)) players.set(p2, { mp:0, mw:0, gw:0, gt:0 });
-      const p = players.get(p2);
-      p.mp++;
-      if (norm(m.Winner_Deck) === norm(deckName)) p.mw++;
+      if (!players.has(m.P2)) players.set(m.P2, { mp: 0, mw: 0, gw: 0, gt: 0 });
+      const p = players.get(m.P2);
+      p.mp += 1;
+      if (m.Winner === m.P2) p.mw += 1;                  // ✅ win credited to the pilot
       p.gw += Number(m.P2W);
       p.gt += Number(m.P1W) + Number(m.P2W);
     }
   }
 
+  // Rank: match WR desc, then game WR desc, then matches played desc
   const ranking = [...players.entries()]
     .map(([player, d]) => ({
       player,
@@ -222,15 +234,23 @@ if (cmd === "!topdeck") {
       mw: d.mw,
       gw: d.gw,
       gt: d.gt,
-      mwr: ((d.mw / d.mp) * 100).toFixed(1),
-      gwr: ((d.gw / d.gt) * 100).toFixed(1)
+      mwr: d.mp ? (d.mw / d.mp) : 0,
+      gwr: d.gt ? (d.gw / d.gt) : 0
     }))
-    .sort((a, b) => b.mw / b.mp - a.mw / a.mp || b.gw / b.gt - a.gw / a.gt)
+    .sort((a, b) =>
+      (b.mwr - a.mwr) || (b.gwr - a.gwr) || (b.mp - a.mp)
+    )
     .slice(0, 3);
 
+  if (!ranking.length)
+    return message.channel.send(`No valid results for **${deckName}** yet.`);
+
   let reply = `🏅 **Top ${Math.min(3, ranking.length)} Pilots of ${deckName}**\n\n`;
-  ranking.forEach(r => {
-    reply += `• **${r.player}** — ${r.mw}-${r.mp - r.mw} (${r.mwr}% match WR) — ${r.gw}-${r.gt - r.gw} games (${r.gwr}% GWR)\n`;
+  ranking.forEach((r, i) => {
+    reply += `${i + 1}) **${r.player}** — ${r.mw}-${r.mp - r.mw} `
+          + `(${(r.mwr * 100).toFixed(1)}% match WR) — `
+          + `${r.gw}-${r.gt - r.gw} games `
+          + `(${(r.gwr * 100).toFixed(1)}% GWR)\n`;
   });
 
   return message.channel.send(reply);
