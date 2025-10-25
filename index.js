@@ -20,9 +20,11 @@ const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent
+    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildMembers // ✅ REQUIRED
   ]
 });
+
 
 // ==============================
 // Railway Web Server Requirement
@@ -56,15 +58,17 @@ client.on("messageCreate", async (message) => {
   // ======================================================
   
   if (cmd === "!debug") {
+  const me = message.guild.members.me; // correct reference in v14
+
   console.log("DEBUG PERMISSIONS:", {
-    canView: message.channel.permissionsFor(client.user).has("ViewChannel"),
-    canSend: message.channel.permissionsFor(client.user).has("SendMessages"),
-    canReadHistory: message.channel.permissionsFor(client.user).has("ReadMessageHistory"),
+    canView: me.permissionsIn(message.channel).has("ViewChannel"),
+    canSend: me.permissionsIn(message.channel).has("SendMessages"),
+    canReadHistory: me.permissionsIn(message.channel).has("ReadMessageHistory"),
   });
 
-  return message.channel.send("🔍 Logged permission report to console.").catch(err => console.error(err));
+  return message.channel.send("🔍 Logged permission report to console.")
+    .catch(err => console.error("FAILED TO SEND DEBUG MESSAGE:", err));
 }
-
 
   // ======================================================
   // DEBUG COMMAND: !test → Confirms bot can send messages
