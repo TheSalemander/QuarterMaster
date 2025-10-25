@@ -52,6 +52,11 @@ client.on("ready", async () => {
 // Message Handler
 // ==============================
 client.on("messageCreate", async (message) => {
+
+  // Auto-delete non-commands in this channel
+if (message.channel.id === ALLOWED_CHANNEL && !message.content.startsWith("!")) {
+  return message.delete().catch(() => {});
+}
   if (message.author.bot) return;
   if (message.channel.id !== ALLOWED_CHANNEL) return;
 
