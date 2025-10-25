@@ -51,6 +51,21 @@ client.on("messageCreate", async (message) => {
   const args = message.content.trim().split(" ");
   const cmd = args.shift().toLowerCase();
 
+ // ======================================================
+  // DEBUG COMMAND: !debug → debugging
+  // ======================================================
+  
+  if (cmd === "!debug") {
+  console.log("DEBUG PERMISSIONS:", {
+    canView: message.channel.permissionsFor(client.user).has("ViewChannel"),
+    canSend: message.channel.permissionsFor(client.user).has("SendMessages"),
+    canReadHistory: message.channel.permissionsFor(client.user).has("ReadMessageHistory"),
+  });
+
+  return message.channel.send("🔍 Logged permission report to console.").catch(err => console.error(err));
+}
+
+
   // ======================================================
   // DEBUG COMMAND: !test → Confirms bot can send messages
   // ======================================================
