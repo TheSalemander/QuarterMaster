@@ -45,10 +45,6 @@ client.on("ready", () => {
 client.on("messageCreate", async (message) => {
   if (message.author.bot) return;
 
-  if (cmd === "!test") {
-  return message.channel.send("✅ QuarterMaster CAN send messages here.");
-}
-
   // ✅ Only respond in the Meta channel
   if (message.channel.id !== ALLOWED_CHANNEL) return;
 
@@ -56,26 +52,36 @@ client.on("messageCreate", async (message) => {
   const cmd = args.shift().toLowerCase();
 
   // ======================================================
+  // DEBUG COMMAND: !test → Confirms bot can send messages
+  // ======================================================
+  if (cmd === "!test") {
+    return message.channel.send("✅ Bot can send messages.").catch(err => {
+      console.error("FAILED TO SEND TEST MESSAGE:", err);
+    });
+  }
+
+  // ======================================================
   // COMMAND: !deckstats <deck name>
-  // Shows match & game performance for a specific deck
   // ======================================================
   if (cmd === "!deckstats") {
     const deckName = args.join(" ").trim();
     if (!deckName) {
-      return message.channel.send("Please specify a deck name. Example: `!deckstats Jund`");
+      return message.channel.send("Please specify a deck name. Example: `!deckstats Jund`")
+        .catch(err => console.error("FAILED TO SEND:", err));
     }
 
-   const response = await fetch(SHEETDB_URL);
-const matches = (await response.json()).filter(m =>
-  m.P1 && m.P2 && m.Winner && m.Winner_Deck
-);
+    const response = await fetch(SHEETDB_URL);
+    const matches = (await response.json()).filter(m =>
+      m.P1 && m.P2 && m.Winner && m.Winner_Deck
+    );
 
     const gamesWithDeck = matches.filter(
       m => m.P1_deck === deckName || m.P2_deck === deckName
     );
 
     if (gamesWithDeck.length === 0) {
-      return message.channel.send(`No recorded matches for deck **${deckName}**.`);
+      return message.channel.send(`No recorded matches for deck **${deckName}**.`)
+        .catch(err => console.error("FAILED TO SEND:", err));
     }
 
     let matchesPlayed = gamesWithDeck.length;
@@ -96,26 +102,27 @@ const matches = (await response.json()).filter(m =>
     let matchWinPct = ((matchesWon / matchesPlayed) * 100).toFixed(1);
     let gameWinPct = ((gamesWon / gamesTotal) * 100).toFixed(1);
 
-    message.channel.send(
+    return message.channel.send(
       `🧙‍♂️ **Deck Stats: ${deckName}**\n\n` +
       `Matches Played: **${matchesPlayed}**\n` +
       `Matches Won: **${matchesWon}** (${matchWinPct}%)\n` +
       `Games Won: **${gamesWon} / ${gamesTotal}** (${gameWinPct}%)`
-    );
+    ).catch(err => console.error("FAILED TO SEND:", err));
   }
 
   // ======================================================
-  // COMMAND: !meta
-  // Shows deck usage & win rates across all matches
+  // COMMAND: !meta → Meta Overview
   // ======================================================
   if (cmd === "!meta") {
     const response = await fetch(SHEETDB_URL);
     const matches = (await response.json()).filter(m =>
-  m.P1 && m.P2 && m.Winner && m.Winner_Deck
-);
+      m.P1 && m.P2 && m.Winner && m.Winner_Deck
+    );
+
     const decks = matches.flatMap(m => [m.P1_deck, m.P2_deck]).filter(Boolean);
     if (decks.length === 0) {
-      return message.channel.send("No decks recorded yet.");
+      return message.channel.send("No decks recorded yet.")
+        .catch(err => console.error("FAILED TO SEND:", err));
     }
 
     const uniqueDecks = [...new Set(decks)];
@@ -152,10 +159,9 @@ const matches = (await response.json()).filter(m =>
       reply += `• **${s.deck}** — ${s.matchesPlayed} matches — ${s.matchWinPct}% match WR — ${s.gameWinPct}% game WR\n`;
     });
 
-    message.channel.send(reply).catch(err => {
-  console.error("FAILED TO SEND MESSAGE:", err);
-  message.channel.send("⚠️ Error sending message. Check bot logs.").catch(() => {});
-});
+    return message.channel.send(reply).catch(err => {
+      console.error("FAILED TO SEND META MESSAGE:", err);
+    });
   }
 });
 
