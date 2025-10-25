@@ -20,11 +20,10 @@ const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildMembers // ✅ REQUIRED
+    GatewayIntentBits.MessageContent,  // <-- requires portal toggle
+    GatewayIntentBits.GuildMembers     // <-- for accurate permission checks
   ]
 });
-
 
 // ==============================
 // Railway Web Server Requirement
@@ -45,116 +44,77 @@ client.on("ready", () => {
 // Command Handler
 // ==============================
 client.on("messageCreate", async (message) => {
-  if (message.author.bot) return;
+  try {
+    if (message.author.bot) return;
 
-  // ✅ Only respond in the Meta channel
-  if (message.channel.id !== ALLOWED_CHANNEL) return;
+    // DEBUG: see exactly what we received
+    console.log(`[QM] msg in ${message.channel.id} | content=`, JSON.stringify(message.content));
 
-  const args = message.content.trim().split(" ");
-  const cmd = args.shift().toLowerCase();
+    // ✅ Only respond in the Meta channel
+    if (message.channel.id !== ALLOWED_CHANNEL) return;
 
- // ======================================================
-  // DEBUG COMMAND: !debug → debugging
-  // ======================================================
-  
-  if (cmd === "!debug") {
-  const me = message.guild.members.me; // correct reference in v14
+    const parts = (message.content || "").trim().split(/\s+/);
+    const cmd = (parts.shift() || "").toLowerCase();
+    const args = parts;
 
-  console.log("DEBUG PERMISSIONS:", {
-    canView: me.permissionsIn(message.channel).has("ViewChannel"),
-    canSend: me.permissionsIn(message.channel).has("SendMessages"),
-    canReadHistory: me.permissionsIn(message.channel).has("ReadMessageHistory"),
-  });
-
-  return message.channel.send("🔍 Logged permission report to console.")
-    .catch(err => console.error("FAILED TO SEND DEBUG MESSAGE:", err));
-}
-
-  // ======================================================
-  // DEBUG COMMAND: !test → Confirms bot can send messages
-  // ======================================================
-  if (cmd === "!test") {
-    return message.channel.send("✅ Bot can send messages.").catch(err => {
-      console.error("FAILED TO SEND TEST MESSAGE:", err);
-    });
-  }
-
-  // ======================================================
-  // COMMAND: !deckstats <deck name>
-  // ======================================================
-  if (cmd === "!deckstats") {
-    const deckName = args.join(" ").trim();
-    if (!deckName) {
-      return message.channel.send("Please specify a deck name. Example: `!deckstats Jund`")
-        .catch(err => console.error("FAILED TO SEND:", err));
+    // ======================================================
+    // DEBUG: !debug — print effective perms to logs
+    // ======================================================
+    if (cmd === "!debug") {
+      const me = message.guild?.members?.me;
+      if (!me) {
+        console.log("[QM] No guild member reference (me) available.");
+      } else {
+        const perms = me.permissionsIn(message.channel);
+        console.log("DEBUG PERMISSIONS:", {
+          canView: perms.has("ViewChannel"),
+          canSend: perms.has("SendMessages"),
+          canReadHistory: perms.has("ReadMessageHistory"),
+        });
+      }
+      return message.channel.send("🔍 Logged permission report to console.")
+        .catch(err => console.error("FAILED TO SEND DEBUG MESSAGE:", err));
     }
 
-    const response = await fetch(SHEETDB_URL);
-    const matches = (await response.json()).filter(m =>
-      m.P1 && m.P2 && m.Winner && m.Winner_Deck
-    );
-
-    const gamesWithDeck = matches.filter(
-      m => m.P1_deck === deckName || m.P2_deck === deckName
-    );
-
-    if (gamesWithDeck.length === 0) {
-      return message.channel.send(`No recorded matches for deck **${deckName}**.`)
-        .catch(err => console.error("FAILED TO SEND:", err));
+    // ======================================================
+    // DEBUG: !test — quick send test
+    // ======================================================
+    if (cmd === "!test") {
+      return message.channel.send("✅ Bot can send messages.")
+        .catch(err => console.error("FAILED TO SEND TEST MESSAGE:", err));
     }
 
-    let matchesPlayed = gamesWithDeck.length;
-    let matchesWon = gamesWithDeck.filter(m => m.Winner_Deck === deckName).length;
+    // ======================================================
+    // !deckstats <deck name>
+    // ======================================================
+    if (cmd === "!deckstats") {
+      const deckName = args.join(" ").trim();
+      if (!deckName) {
+        return message.channel.send("Please specify a deck name. Example: `!deckstats Jund`")
+          .catch(err => console.error("FAILED TO SEND:", err));
+      }
 
-    let gamesWon = gamesWithDeck.reduce((sum, m) =>
-      sum +
-      (m.P1_deck === deckName ? Number(m.P1W) : 0) +
-      (m.P2_deck === deckName ? Number(m.P2W) : 0),
-      0
-    );
+      const response = await fetch(SHEETDB_URL);
+      const matches = (await response.json()).filter(m =>
+        m.P1 && m.P2 && m.Winner && m.Winner_Deck
+      );
 
-    let gamesTotal = gamesWithDeck.reduce((sum, m) =>
-      sum + Number(m.P1W) + Number(m.P2W),
-      0
-    );
+      const gamesWithDeck = matches.filter(
+        m => m.P1_deck === deckName || m.P2_deck === deckName
+      );
 
-    let matchWinPct = ((matchesWon / matchesPlayed) * 100).toFixed(1);
-    let gameWinPct = ((gamesWon / gamesTotal) * 100).toFixed(1);
+      if (gamesWithDeck.length === 0) {
+        return message.channel.send(`No recorded matches for deck **${deckName}**.`)
+          .catch(err => console.error("FAILED TO SEND:", err));
+      }
 
-    return message.channel.send(
-      `🧙‍♂️ **Deck Stats: ${deckName}**\n\n` +
-      `Matches Played: **${matchesPlayed}**\n` +
-      `Matches Won: **${matchesWon}** (${matchWinPct}%)\n` +
-      `Games Won: **${gamesWon} / ${gamesTotal}** (${gameWinPct}%)`
-    ).catch(err => console.error("FAILED TO SEND:", err));
-  }
-
-  // ======================================================
-  // COMMAND: !meta → Meta Overview
-  // ======================================================
-  if (cmd === "!meta") {
-    const response = await fetch(SHEETDB_URL);
-    const matches = (await response.json()).filter(m =>
-      m.P1 && m.P2 && m.Winner && m.Winner_Deck
-    );
-
-    const decks = matches.flatMap(m => [m.P1_deck, m.P2_deck]).filter(Boolean);
-    if (decks.length === 0) {
-      return message.channel.send("No decks recorded yet.")
-        .catch(err => console.error("FAILED TO SEND:", err));
-    }
-
-    const uniqueDecks = [...new Set(decks)];
-
-    let metaStats = uniqueDecks.map(deck => {
-      const gamesWithDeck = matches.filter(m => m.P1_deck === deck || m.P2_deck === deck);
       const matchesPlayed = gamesWithDeck.length;
-      const matchesWon = gamesWithDeck.filter(m => m.Winner_Deck === deck).length;
+      const matchesWon = gamesWithDeck.filter(m => m.Winner_Deck === deckName).length;
 
       const gamesWon = gamesWithDeck.reduce((sum, m) =>
         sum +
-        (m.P1_deck === deck ? Number(m.P1W) : 0) +
-        (m.P2_deck === deck ? Number(m.P2W) : 0),
+        (m.P1_deck === deckName ? Number(m.P1W) : 0) +
+        (m.P2_deck === deckName ? Number(m.P2W) : 0),
         0
       );
 
@@ -163,24 +123,72 @@ client.on("messageCreate", async (message) => {
         0
       );
 
-      return {
-        deck,
-        matchesPlayed,
-        matchWinPct: matchesPlayed ? ((matchesWon / matchesPlayed) * 100).toFixed(1) : "0.0",
-        gameWinPct: gamesTotal ? ((gamesWon / gamesTotal) * 100).toFixed(1) : "0.0"
-      };
-    });
+      const matchWinPct = ((matchesWon / matchesPlayed) * 100).toFixed(1);
+      const gameWinPct = ((gamesWon / gamesTotal) * 100).toFixed(1);
 
-    metaStats.sort((a, b) => b.matchesPlayed - a.matchesPlayed);
+      return message.channel.send(
+        `🧙‍♂️ **Deck Stats: ${deckName}**\n\n` +
+        `Matches Played: **${matchesPlayed}**\n` +
+        `Matches Won: **${matchesWon}** (${matchWinPct}%)\n` +
+        `Games Won: **${gamesWon} / ${gamesTotal}** (${gameWinPct}%)`
+      ).catch(err => console.error("FAILED TO SEND:", err));
+    }
 
-    let reply = "📊 **Current Meta Overview**\n\n";
-    metaStats.forEach(s => {
-      reply += `• **${s.deck}** — ${s.matchesPlayed} matches — ${s.matchWinPct}% match WR — ${s.gameWinPct}% game WR\n`;
-    });
+    // ======================================================
+    // !meta — Meta Overview
+    // ======================================================
+    if (cmd === "!meta") {
+      const response = await fetch(SHEETDB_URL);
+      const matches = (await response.json()).filter(m =>
+        m.P1 && m.P2 && m.Winner && m.Winner_Deck
+      );
 
-    return message.channel.send(reply).catch(err => {
-      console.error("FAILED TO SEND META MESSAGE:", err);
-    });
+      const decks = matches.flatMap(m => [m.P1_deck, m.P2_deck]).filter(Boolean);
+      if (decks.length === 0) {
+        return message.channel.send("No decks recorded yet.")
+          .catch(err => console.error("FAILED TO SEND:", err));
+      }
+
+      const uniqueDecks = [...new Set(decks)];
+
+      let metaStats = uniqueDecks.map(deck => {
+        const gamesWithDeck = matches.filter(m => m.P1_deck === deck || m.P2_deck === deck);
+        const matchesPlayed = gamesWithDeck.length;
+        const matchesWon = gamesWithDeck.filter(m => m.Winner_Deck === deck).length;
+
+        const gamesWon = gamesWithDeck.reduce((sum, m) =>
+          sum +
+          (m.P1_deck === deck ? Number(m.P1W) : 0) +
+          (m.P2_deck === deck ? Number(m.P2W) : 0),
+          0
+        );
+
+        const gamesTotal = gamesWithDeck.reduce((sum, m) =>
+          sum + Number(m.P1W) + Number(m.P2W),
+          0
+        );
+
+        return {
+          deck,
+          matchesPlayed,
+          matchWinPct: matchesPlayed ? ((matchesWon / matchesPlayed) * 100).toFixed(1) : "0.0",
+          gameWinPct: gamesTotal ? ((gamesWon / gamesTotal) * 100).toFixed(1) : "0.0"
+        };
+      });
+
+      metaStats.sort((a, b) => b.matchesPlayed - a.matchesPlayed);
+
+      let reply = "📊 **Current Meta Overview**\n\n";
+      metaStats.forEach(s => {
+        reply += `• **${s.deck}** — ${s.matchesPlayed} matches — ${s.matchWinPct}% match WR — ${s.gameWinPct}% game WR\n`;
+      });
+
+      return message.channel.send(reply).catch(err => {
+        console.error("FAILED TO SEND META MESSAGE:", err);
+      });
+    }
+  } catch (err) {
+    console.error("[QM] Uncaught error in messageCreate:", err);
   }
 });
 
