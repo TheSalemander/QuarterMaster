@@ -59,7 +59,7 @@ client.on(Events.MessageCreate, (message) => {
 client.on(Events.InteractionCreate, async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
   if (interaction.channelId !== ALLOWED_CHANNEL) {
-    return interaction.reply({ content: "❌ This command can only be used in the QuarterMaster channel.", ephemeral: true });
+    return interaction.reply({ content: "❌ This command can only be used in the Meta channel.", ephemeral: true });
   }
 
   const cmd = interaction.commandName;
