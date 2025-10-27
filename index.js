@@ -3,7 +3,7 @@
 // Deck Meta & Analytics Bot
 // ==============================
 
-require("dotenv").config();
+
 const { Client, GatewayIntentBits, Events } = require("discord.js");
 const fetch = require("node-fetch");
 
