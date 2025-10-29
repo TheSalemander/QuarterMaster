@@ -241,7 +241,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
   try {
     const response = await fetch(`${process.env.SHEETDB_URL}?sheet=Deck_Matchup_Matrix`);
-    const matrixRaw = await response.json();
+    const data = await response.json();
+    const matrixRaw = Array.isArray(data) ? data : data.data || [];
 
     // 🧹 Clean up data
     const matrix = matrixRaw
