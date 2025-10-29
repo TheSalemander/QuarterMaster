@@ -246,14 +246,16 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     // 🧹 Clean up data
     const matrix = matrixRaw
-      .filter(r => Object.values(r).some(v => v && v.toString().trim() !== ""))
-      .map(row => {
-        const cleaned = {};
-        for (const [key, value] of Object.entries(row)) {
-          if (key && key.trim() !== "") cleaned[key.trim()] = (value || "").trim();
-        }
-        return cleaned;
-      });
+  // keep only rows where DECK name exists and isn't empty or "-"
+  .filter(r => r.DECK && r.DECK.trim() && r.DECK.trim() !== "-")
+  .map(row => {
+    const cleaned = {};
+    for (const [key, value] of Object.entries(row)) {
+      // strip whitespace and keep only non-empty keys
+      if (key && key.trim() !== "") cleaned[key.trim()] = (value || "").trim();
+    }
+    return cleaned;
+  });
 
     if (!matrix.length)
       return interaction.editReply("No Deck Matrix data found or the sheet is empty.");
