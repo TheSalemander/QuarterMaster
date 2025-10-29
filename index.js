@@ -5,7 +5,7 @@
 
 
 const { Client, GatewayIntentBits, Events } = require("discord.js");
-const fetch = require("node-fetch");
+
 
 // ==============================
 // CONFIG
