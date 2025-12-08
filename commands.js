@@ -72,4 +72,13 @@ module.exports = [
         .setMinValue(1)
         .setMaxValue(20)
     ),
+
+    // /deck-matrix
+new SlashCommandBuilder()
+  .setName("deck-matrix")
+  .setDescription("Show full deck matchup heatmap matrix"),
+
+
+
+    
 ];
