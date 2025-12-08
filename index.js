@@ -1,84 +1,58 @@
-// countdown.js
-const cron = require("node-cron");
-const { EmbedBuilder } = require("discord.js");
+const { Client, GatewayIntentBits, Events } = require("discord.js");
+require("dotenv").config();
+const { registerFont } = require("canvas");
+const fs = require("fs");
+const deckMatrixHandler = require('./deckMatrixHandler');
+const { setupCountdown } = require("./countdown"); // 👈 ADDED LINE
 
-const END_AT = new Date("2025-12-31T23:59:59+02:00"); // Helsinki time at year end
-const TZ = "Europe/Helsinki";
-const PLAYER_ROLE_ID = "1430444494662139966"; // @pelaaja
+// CONFIG
+const SHEETDB_URL = process.env.SHEETDB_URL;
+const ALLOWED_CHANNEL = process.env.QM_CHANNEL_ID || "1431286082980282530";
 
-function formatRemaining(ms) {
-  if (ms <= 0) return "0 days 0 hours 0 minutes 0 seconds";
-  const sec = Math.floor(ms / 1000);
-  const days = Math.floor(sec / 86400);
-  const hours = Math.floor((sec % 86400) / 3600);
-  const mins = Math.floor((sec % 3600) / 60);
-  const secs = sec % 60;
-  return `${days} days ${hours} hours ${mins} minutes ${secs} seconds`;
+// DISCORD CLIENT
+const client = new Client({
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
+});
+
+// FONT
+try {
+  const fontPath = "./assets/fonts/NotoSans-Regular.ttf";
+  if (fs.existsSync(fontPath)) {
+    registerFont(fontPath, { family: "NotoSans" });
+    console.log("✅ Registered font NotoSans-Regular for Deck Matrix");
+  } else {
+    console.warn("⚠️ Font not found, using default Canvas font");
+  }
+} catch (err) {
+  console.warn("⚠️ Font registration failed:", err.message);
 }
 
-function buildEmbed(now) {
-  const remaining = END_AT - now;
-  return new EmbedBuilder()
-    .setTitle("⏳ Pauper Liiga – Year-End Countdown")
-    .setDescription(
-      `Time remaining until **December 31, 2025, 23:59:59 (Helsinki)**:\n` +
-      `**${formatRemaining(remaining)}**`
-    )
-    .setFooter({ text: "Weekly reminder • QuarterMaster" })
-    .setTimestamp(now);
-}
-
-// Call this once when the client is ready
-function setupCountdown(client) {
-  const channelId = process.env.COUNTDOWN_CHANNEL_ID;
-  if (!channelId) {
-    console.warn("[countdown] COUNTDOWN_CHANNEL_ID not set, skipping countdown scheduler.");
-    return;
+// READY
+client.on(Events.ClientReady, async () => {
+  console.log(`✅ QuarterMaster Online as ${client.user.tag}`);
+  try {
+    const ch = await client.channels.fetch(ALLOWED_CHANNEL);
+    await ch.send("🟢 QuarterMaster Online (slash commands active).");
+  } catch (err) {
+    console.error("Boot message failed:", err);
   }
 
-  const job = cron.schedule(
-    "0 9 * * 1", // every Monday at 09:00
-    async () => {
-      try {
-        const now = new Date();
-        const channel = await client.channels.fetch(channelId);
-        if (!channel || !channel.isTextBased()) {
-          console.warn("[countdown] Channel not found or not text-based");
-          return;
-        }
+  setupCountdown(client); // 👈 ADDED LINE
+});
 
-        if (now >= END_AT) {
-          await channel.send({
-            content: `<@&${PLAYER_ROLE_ID}>`,
-            embeds: [
-              new EmbedBuilder()
-                .setTitle("✅ Countdown complete!")
-                .setDescription(
-                  "We’ve reached **December 31, 2025, 23:59:59 (Helsinki)**.\n" +
-                  "Pauper Liiga year-end mark achieved!"
-                )
-                .setTimestamp(now),
-            ],
-            allowedMentions: { roles: [PLAYER_ROLE_ID] },
-          });
+// AUTO DELETE
+client.on(Events.MessageCreate, (message) => {
+  if (message.author.bot) return;
+  if (message.channel.id !== ALLOWED_CHANNEL) return;
+  if (!message.interaction && !message.content.startsWith("/")) {
+    message.delete().catch(() => {});
+  }
+});
 
-          job.stop();
-          return;
-        }
+// MAIN SLASH HANDLER
 
-        await channel.send({
-          content: `<@&${PLAYER_ROLE_ID}>`,
-          embeds: [buildEmbed(now)],
-          allowedMentions: { roles: [PLAYER_ROLE_ID] },
-        });
-      } catch (err) {
-        console.error("[countdown] Error in cron job:", err);
-      }
-    },
-    { timezone: TZ }
-  );
+// Attach deck matrix handler logic
+deckMatrixHandler(client);
 
-  console.log("[countdown] Weekly countdown scheduled for Mondays 09:00 Europe/Helsinki");
-}
-
-module.exports = { setupCountdown };
+// LOGIN
+client.login(process.env.DISCORD_TOKEN);
