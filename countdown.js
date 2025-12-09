@@ -19,7 +19,7 @@ function formatRemaining(ms) {
 function buildEmbed(now) {
   const remaining = END_AT - now;
   return new EmbedBuilder()
-    .setTitle("⏳ Pauper Liiga – Liigan alkuun)
+    .setTitle("⏳ Pauper Liiga – Liigan alkuun")
     .setDescription(
       `Time remaining until **December 31, 2025, 23:59:59 (Helsinki)**:\n` +
       `**${formatRemaining(remaining)}**`
