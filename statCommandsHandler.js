@@ -68,15 +68,27 @@ module.exports = function attachStatCommands(client) {
       const rows = getRows(raw);
 
       switch (cmd) {
-        case "recent": {
+            case "recent": {
           const countOpt = interaction.options.getInteger("count");
           const count = countOpt ?? 5;
-          const last = rows.slice(-count);
 
-          if (!last.length) {
-            await interaction.editReply("⚠️ No matches found in the sheet.");
+          // 1) Filter out rows that don't have a date (empty/template rows)
+          const withDate = rows.filter((r) => (r.Date || r.date));
+
+          if (!withDate.length) {
+            await interaction.editReply("⚠️ No matches with a valid date found in the sheet.");
             return;
           }
+
+          // 2) Sort by date ascending (oldest -> newest)
+          withDate.sort((a, b) => {
+            const da = (a.Date || a.date || "").toString();
+            const db = (b.Date || b.date || "").toString();
+            return da.localeCompare(db);
+          });
+
+          // 3) Take the last N (most recent) matches
+          const last = withDate.slice(-count);
 
           const lines = last
             .map((r, idx) => {
@@ -85,16 +97,19 @@ module.exports = function attachStatCommands(client) {
               const p2 = r.P2 || r.p2 || "?";
               const d1 = r.P1_deck || r.p1_deck || "?";
               const d2 = r.P2_deck || r.p2_deck || "?";
-              const winner = r.Winner || r.winner || "?";
-              const result = r.Result || r.result || "";
-              return `${last.length - idx}. **${date}** – ${p1} (${d1}) vs ${p2} (${d2}) → **${winner}** ${result}`;
+              const winner = r.Winner || r.winner || "-";
+              const result = r.Result || r.result || "-";
+              // number from newest to oldest (so last row gets "1.")
+              const num = last.length - idx;
+              return `${num}. **${date}** – ${p1} (${d1}) vs ${p2} (${d2}) → **${winner}** ${result}`;
             })
-            .reverse()
+            .reverse() // show newest last (chronological top -> bottom)
             .join("\n");
 
           await interaction.editReply(lines);
           return;
         }
+
 
         case "meta": {
           const decks = new Map();
