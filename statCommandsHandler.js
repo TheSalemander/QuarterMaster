@@ -11,8 +11,19 @@ function norm(str) {
 function getRows(raw) {
   const rows = Array.isArray(raw) ? raw : raw.data;
   if (!Array.isArray(rows)) throw new Error("Unexpected SheetDB response format");
-  return rows;
+
+  // 🔹 Normalize keys + trim string values
+  return rows.map((row) => {
+    const cleaned = {};
+    for (const [key, value] of Object.entries(row)) {
+      if (!key) continue;
+      const k = key.trim();                 // remove trailing / leading spaces
+      cleaned[k] = typeof value === "string" ? value.trim() : value;
+    }
+    return cleaned;
+  });
 }
+
 
 function ensureDeck(map, key, label) {
   if (!key) return null;
