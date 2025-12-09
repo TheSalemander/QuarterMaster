@@ -2,9 +2,9 @@ const { Client, GatewayIntentBits, Events } = require("discord.js");
 require("dotenv").config();
 const { registerFont } = require("canvas");
 const fs = require("fs");
-const registerCommands = require("./commands");
-const deckMatrixHandler = require('./deckMatrixHandler');
+const deckMatrixHandler = require("./deckMatrixHandler");
 const { setupCountdown } = require("./countdown");
+const attachStatCommands = require("./statCommandsHandler");
 
 // CONFIG
 const SHEETDB_URL = process.env.SHEETDB_URL;
@@ -57,11 +57,11 @@ client.on(Events.MessageCreate, (message) => {
 
 // MAIN SLASH HANDLERS
 
-// Attach deck matrix handler logic (/deck-matrix)
+// /deck-matrix -> heatmap image
 deckMatrixHandler(client);
 
-// Attach other slash command handlers (/meta, /recent, /topdeck, etc.)
-registerCommands(client);
+// other Liiga stats commands (/meta, /recent, /topdeck, /deckstats, /matchups, /vs, /trend)
+attachStatCommands(client);
 
 // LOGIN
 client.login(process.env.DISCORD_TOKEN);
