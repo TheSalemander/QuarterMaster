@@ -2,8 +2,9 @@ const { Client, GatewayIntentBits, Events } = require("discord.js");
 require("dotenv").config();
 const { registerFont } = require("canvas");
 const fs = require("fs");
+const registerCommands = require("./commands");
 const deckMatrixHandler = require('./deckMatrixHandler');
-const { setupCountdown } = require("./countdown"); // 👈 ADDED LINE
+const { setupCountdown } = require("./countdown");
 
 // CONFIG
 const SHEETDB_URL = process.env.SHEETDB_URL;
@@ -11,7 +12,11 @@ const ALLOWED_CHANNEL = process.env.QM_CHANNEL_ID || "1431286082980282530";
 
 // DISCORD CLIENT
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+  ],
 });
 
 // FONT
@@ -37,7 +42,8 @@ client.on(Events.ClientReady, async () => {
     console.error("Boot message failed:", err);
   }
 
-  setupCountdown(client); // 👈 ADDED LINE
+  // start countdown scheduler
+  setupCountdown(client);
 });
 
 // AUTO DELETE
@@ -49,10 +55,13 @@ client.on(Events.MessageCreate, (message) => {
   }
 });
 
-// MAIN SLASH HANDLER
+// MAIN SLASH HANDLERS
 
-// Attach deck matrix handler logic
+// Attach deck matrix handler logic (/deck-matrix)
 deckMatrixHandler(client);
+
+// Attach other slash command handlers (/meta, /recent, /topdeck, etc.)
+registerCommands(client);
 
 // LOGIN
 client.login(process.env.DISCORD_TOKEN);
