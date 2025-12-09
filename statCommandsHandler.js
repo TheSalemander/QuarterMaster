@@ -67,6 +67,13 @@ module.exports = function attachStatCommands(client) {
       const raw = await res.json();
       const rows = getRows(raw);
 
+      console.log(
+        "[statCommands] sample row keys:",
+        rows.length ? Object.keys(rows[0]) : "NO ROWS"
+      );
+      console.log("[statCommands] sample row data:", rows[0]);
+
+
       switch (cmd) {
             case "recent": {
           const countOpt = interaction.options.getInteger("count");
