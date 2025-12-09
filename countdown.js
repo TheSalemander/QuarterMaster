@@ -19,7 +19,7 @@ function formatRemaining(ms) {
 function buildEmbed(now) {
   const remaining = END_AT - now;
   return new EmbedBuilder()
-    .setTitle("⏳ Pauper Liiga – Year-End Countdown")
+    .setTitle("⏳ Pauper Liiga – Liigan alkuun)
     .setDescription(
       `Time remaining until **December 31, 2025, 23:59:59 (Helsinki)**:\n` +
       `**${formatRemaining(remaining)}**`
@@ -29,13 +29,32 @@ function buildEmbed(now) {
 }
 
 // Call this once when the client is ready
-function setupCountdown(client) {
+async function setupCountdown(client) {
   const channelId = process.env.COUNTDOWN_CHANNEL_ID;
   if (!channelId) {
     console.warn("[countdown] COUNTDOWN_CHANNEL_ID not set, skipping countdown scheduler.");
     return;
   }
 
+  // 🔹 Send an immediate countdown message on startup
+  try {
+    const now = new Date();
+    const channel = await client.channels.fetch(channelId);
+    if (channel && channel.isTextBased()) {
+      await channel.send({
+        content: `<@&${PLAYER_ROLE_ID}>`,
+        embeds: [buildEmbed(now)],
+        allowedMentions: { roles: [PLAYER_ROLE_ID] },
+      });
+      console.log("[countdown] Sent initial countdown message.");
+    } else {
+      console.warn("[countdown] Channel not found or not text-based for initial message.");
+    }
+  } catch (err) {
+    console.error("[countdown] Error sending initial countdown message:", err);
+  }
+
+  // 🔹 Weekly Monday 09:00 reminder
   const job = cron.schedule(
     "0 9 * * 1", // every Monday at 09:00
     async () => {
@@ -52,10 +71,10 @@ function setupCountdown(client) {
             content: `<@&${PLAYER_ROLE_ID}>`,
             embeds: [
               new EmbedBuilder()
-                .setTitle("✅ Countdown complete!")
+                .setTitle("✅ Pakat on lukittu")
                 .setDescription(
                   "We’ve reached **December 31, 2025, 23:59:59 (Helsinki)**.\n" +
-                  "Pauper Liiga year-end mark achieved!"
+                  "Pauper liiga kausi on alkanut! Onnea peleille"
                 )
                 .setTimestamp(now),
             ],
